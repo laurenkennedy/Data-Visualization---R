@@ -1,0 +1,295 @@
+---
+title: "L04 Maps"
+subtitle: "Data Visualization (STAT 302)" 
+author: "Lauren Kennedy"
+pagetitle: "L04 Lauren Kennedy"
+
+format:
+  html:
+    toc: true
+    toc-location: left
+    embed-resources: true
+    link-external-newwindow: true
+    code-fold: show
+    fig-dpi: 300
+    
+execute:
+  warning: false
+
+from: markdown+emoji
+reference-location: margin
+citation-location: margin 
+---
+
+
+## Overview
+
+The goal of this lab is to explore various ways of building maps with `ggplot2`.
+
+Challenges are not mandatory for students to complete. We highly recommend students attempt them though. *We would expect graduate students to attempt the challenges.*
+
+## Datasets
+
+We'll be using the `US_income.rda` dataset which should be placed in the `/data` subdirectory in our **data_vis_labs** project. You'll also be downloading your own data to build maps.
+
+```{r} 
+#| label: load-packages
+
+# Load package(s)
+library(tidyverse)
+library(sf)
+library(statebins)
+library(viridis)
+library(tidycensus)
+library(mapview)
+library(tigris)
+library(maps)
+
+library(raster)
+library(janitor)
+library(geodata)
+library(geodata)
+library(leaflet)
+
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+# Load dataset(s)
+load("data/US_income.rda")
+
+```
+
+## Exercise 1
+
+### Plot 1
+
+Make a county map of a US state using `geom_polygon()`. Maybe use your home state or a favorite state. Please do NOT use the state in the ggplot2 book example. 
+
+Optional: Consider adding major cities (or your home town).
+
+*Hints:*
+
+-   See section [6.1](https://ggplot2-book.org/maps.html#polygonmaps) in our book.
+-   Void theme
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: Q1plot1
+#| results: hide
+
+
+ga_counties <- map_data("county", "georgia") %>%
+  select(lon = long, lat, group, id=subregion)
+
+ga_cities <- places(state = "GA", class = "data.frame")
+#geom_sf_text(ga_cities, mapping = aes(label = city)) 
+
+ggplot(ga_counties, aes(lon,lat))+
+  geom_polygon(aes(group = group),
+               fill = NA, color = "grey50")+
+  coord_quickmap() +
+  ggtitle("Georgia") +
+  theme_void()
+
+
+```
+
+:::
+
+### Plot 2
+
+Now use `geom_sf()` instead. You'll need to download data for this. You can use either the `tigris` ([github page](https://github.com/walkerke/tigris)) or `geodata` packages. Either `tigris`' `counties()` with `cb = TRUE` or `geodata`'s `gadm()` could be useful.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: Q1Plot2
+
+#using Tigris 
+ga_data <- counties(state = "GA", cb=TRUE, progress_bar = FALSE) #prevent function from showing progress bar
+ggplot(ga_data) +
+  geom_sf(fill = NA)+
+  theme_void() + 
+  ggtitle("Georgia"
+  )
+
+#Using geodata gadm
+# usa_dat <-gadm("USA", level = 2,
+#                  path = tempdir()) %>%
+#   st_as_sf() %>%
+#   clean_names()
+# 
+# #subset counties of GA from USA GADM data
+# sd_dat <-usa_dat %>%
+#   filter(name_1 == "Georgia")
+# 
+# ggplot(sd_dat)+
+#   geom_sf(fill = NA)+
+#   coord_sf() + 
+#   ggtitle("Georgia") +
+#   theme_void()
+#   
+# 
+
+```
+
+:::
+
+## Exercise 2
+
+Using the `US_income` dataset, recreate the following graphics as precisely as possible.
+
+```{r}
+#| label: ex-2-data-wrangle
+
+
+# Setting income levels
+US_income <- mutate(
+  US_income,
+  income_bins = cut(
+    ifelse(is.na(median_income), 25000, median_income),
+    breaks = c(0, 40000, 50000, 60000, 70000, 80000),
+    labels = c("< $40k", "$40k to $50k", 
+               "$50k to $60k", "$60k to $70k", "> $70k"),
+    right = FALSE
+  )
+)
+```
+
+### Plot 1
+
+*Hints:*
+
+-   `geom_sf()` --- boundary color is `"grey80"` and size is 0.2
+-   `viridis` package (`discrete = TRUE` in `scale_*` function)
+-   Void theme
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: Q2plot1
+
+ggplot(US_income, aes(fill = income_bins,
+                      geometry = geometry)) +
+  geom_sf(color="grey80", size=0.2) +
+  theme_void() + 
+  scale_fill_viridis(discrete = TRUE) +
+  labs(fill = "Median\nIncome")
+
+
+
+```
+
+:::
+
+### Plot 2
+
+*Hints:*
+
+-   `statebins::geom_statebins()`
+-   `viridis` package (`discrete = TRUE` in `scale_*` function)
+-   Statebins theme
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: Q2Plot2
+
+ggplot(US_income, aes(state = name, fill = income_bins))+
+  geom_statebins() +
+  scale_fill_viridis(discrete = TRUE)+
+  theme_statebins()+
+  labs(fill = "Median\nIncome")
+
+```
+
+:::
+
+## Exercise 3
+
+Pick any city or foreign country to build a map for. You can dress it up or make it as basic as you want. Also welcome to try building a graphic like that depicted at the end of section [6.5](https://ggplot2-book.org/maps.html#rastermaps) --- use a different region though.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: Q3Plot
+
+france_map <- gadm(country = "FR", level = 1, path=tempdir()) %>%
+  st_as_sf() %>%
+  clean_names()
+
+ggplot(data = france_map)+
+  geom_sf(fill = "lightblue", color="black")+
+  theme_minimal()+
+  ggtitle("Map of France")
+
+
+```
+:::
+
+
+
+
+## Challenge(s)
+
+::: callout-important
+
+<!-- Graduate students are required to complete this challenge. **It is optional for undergraduate students.** -->
+
+It is optional for everyone, but we highly encourage students to give it a try. Several students in past versions of this course used mapping data like this for their final project. Usually using the `leaflet` or `mapview` packages. This one is done with `mapview`, but as an additional challenge students could try doing this with `leaflet` too.
+
+:::
+
+Using the `tidycensus` package and few others, try to create a map like below using [these directions](https://walkerke.github.io/tidycensus/articles/spatial-data.html). Try using a different geographical area and a different variable from the ACS.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+options(tigris_use_cache = TRUE)
+
+#get ACS data for Fulton County, GA
+atlanta <- get_acs(
+  state = "GA",
+  county = "Fulton",
+  geography = "tract",
+  variables = "B27001_001",
+  geometry = TRUE,
+  year = 2020
+)
+
+pal <- colorNumeric(
+  palette = "viridis",
+  domain = atlanta$estimate,
+  na.color = "transparent"
+)
+
+
+leaflet(data=atlanta) %>%
+  addTiles() %>%
+  addPolygons(
+    fillColor = ~pal(estimate),
+    color = "black",
+    weight = 1, opacity = 1, fillOpacity = 0.7,
+    popup = ~paste("Estimate:", estimate)) %>%
+  addLegend(
+    pal = pal,
+    values = ~estimate,
+    opacity=0.7,
+    title = "Population with Health Insurance",
+    position = "bottomright"
+  )
+  
+  
+
+```
+
+:::
+
